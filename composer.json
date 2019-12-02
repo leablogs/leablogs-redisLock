@@ -1,0 +1,16 @@
+{
+	"name" : "leablogs/redis-lock",
+	"type" : "library",
+	"license" : "MIT",
+	"authors" : [{
+			"name" : "shilh",
+			"email" : "shilh@sina.cn"
+		}
+	],
+	"require":[
+		{
+			"php":">=7.2"
+		}
+	]
+	"minimum-stability" : "dev"
+}
