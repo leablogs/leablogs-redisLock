@@ -2,18 +2,19 @@
 declare(strict_types = 1);
 namespace Leablogs\redisLock;
 
-class RedisLock
+class RedisLocks
 {
-
+    
     private $redis;
-
+    
     private $lockedName = array();
-
+    
     public function __construct($redis)
     {
-        $this->redis = new \Redis();
+        // $this->redis = new \Redis();
+        $this->redis = $redis;
     }
-
+    
     /**
      * 获取锁
      *
@@ -29,47 +30,55 @@ class RedisLock
      * @return bool
      * @date 2019年12月2日 下午2:52:04
      */
-    public function lock($key, $timeout = 0, $expire = 15, $waiteIntervalUs = 100000): bool
+    public function lock($key, $timeout = 0, $expire = 15, $waiteIntervalUs = 10000): bool
     {
         if ($key == null)
             return false;
-        // get current time
-        $current_time = time();
-        // lock fail,wait timeout
-        $timeoutAt = $current_time + $timeout;
-        // lock max survival
-        $expireAt = $current_time + $expire;
-        $redisKey = "Lock:{$key}";
-        while (true) {
-            // 将rediskey 最大生存时刻存到redis，过了这个时刻会自动释放
-            $result = $this->redis->setnx($redisKey, $expireAt);
-
-            if ($result != false) {
-                // 设置key失效时间
-                $this->expire($redisKey, $expireAt);
-                // 蒋锁的表示放到lockname数组中
-                $this->lockedName[$key] = $expireAt;
-                return true;
+            // get current time
+            $current_time = time();
+            // lock fail,wait timeout
+            $timeoutAt = $current_time + $timeout;
+            // lock max survival
+            $expireAt = $current_time + $expire;
+            $redisKey = "Lock:{$key}";
+            while (true) {
+                // 将rediskey 最大生存时刻存到redis，过了这个时刻会自动释放
+                $result = $this->redis->setnx($redisKey, $expireAt);
+                echo $key . "=*****=" . $expireAt . "\r\n";
+                if ($result != false) {
+                    echo "***************\r\n";
+                    // 蒋锁的表示放到lockname数组中
+                    $this->lockedName[$key] = $expireAt;
+                    // 设置key失效时间
+                    $res = $this->expire($key, $expireAt);
+                    return true;
+                }
+                echo "***************1111111111\r\n";
+                // 已秒为单位返回给定的key剩余生存周期
+                $ttl = $this->redis->ttl($redisKey);
+                echo "**************333333333333333333*\r\n";
+                // ttl小于0，表示key没有设置生存周期
+                //
+                //
+                if ($ttl < 0) {
+                    echo "************sssssssaaaaaaaaaaa***\r\n";
+                    $this->redis->set($redisKey, $expireAt);
+                    $this->lockedName[$key] = $expireAt;
+                    return true;
+                }
+                echo "**************ssssssssssssssssss*\r\n";
+                // 如果设置锁失败，或超过最大等待时间，就退出
+                if ($timeout <= 0 || $timeoutAt < microtime(true)) {
+                    echo "=================\r\n";
+                    break;
+                }
+                echo "**************dddddddddddddddddddddd*\r\n";
+                // 间隔 指定时间后请求
+                usleep($waiteIntervalUs);
             }
-            // 已秒为单位返回给定的key剩余生存周期
-            $ttl = $this->redis->ttl($redisKey);
-            // ttl小于0，表示key没有设置生存周期
-            //
-            //
-            if ($ttl < 0) {
-                $this->redis->set($redisKey, $expireAt);
-                $this->lockedNames[$key];
-                return true;
-            }
-            // 如果设置锁失败，或超过最大等待时间，就退出
-            if ($timeout <= 0 || $timeoutAt < microtime(true))
-                break;
-            // /间隔 指定时间后请求
-            usleep($waiteIntervalUs);
-        }
-        return true;
+            return false;
     }
-
+    
     /**
      * 释放锁
      *
@@ -80,15 +89,16 @@ class RedisLock
      */
     public function unLock($key): bool
     {
+        echo "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\r\n";
         if ($this->isLocking($key)) {
-            if ($this->redis->delete("Lock:{$key}")) {
+            if ($this->redis->del("Lock:{$key}")) {
                 unset($this->lockedName[$key]);
                 return true;
             }
         }
-        return true;
+        return false;
     }
-
+    
     /**
      * 释放所有锁
      *
@@ -106,7 +116,7 @@ class RedisLock
         }
         return $allSuccess;
     }
-
+    
     /**
      * 给当前所设置生存周期,必须大于0
      *
@@ -116,17 +126,17 @@ class RedisLock
      * @return boolean
      * @date 2019年12月2日 下午3:04:51
      */
-    public function expire($key, $expire): bool
+    private function expire($key, $expire): bool
     {
         if ($this->isLocking($key)) {
             $expire = max($expire, 1);
-            if ($this->redis->expire("Lock:$name", $expire)) {
+            if ($this->redis->expire("Lock:{$key}", $expire)) {
                 return true;
             }
         }
         return false;
     }
-
+    
     /**
      * 获取当前指定锁状态
      *
@@ -135,12 +145,11 @@ class RedisLock
      * @return boolean
      * @date 2019年12月2日 下午3:01:27
      */
-    private function isLocking($key): string
+    private function isLocking($key): bool
     {
         if (isset($this->lockedName[$key])) {
-            return (string) $this->lockedName[$name] = (string) $this->redisString->get("Lock:{$name}");
+            return (string) $this->lockedName[$key] == (string) $this->redis->get("Lock:{$key}");
         }
         return false;
     }
 }
-
