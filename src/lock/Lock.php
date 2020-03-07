@@ -44,35 +44,27 @@ class RedisLocks
             while (true) {
                 // 将rediskey 最大生存时刻存到redis，过了这个时刻会自动释放
                 $result = $this->redis->setnx($redisKey, $expireAt);
-                echo $key . "=*****=" . $expireAt . "\r\n";
                 if ($result != false) {
-                    echo "***************\r\n";
                     // 蒋锁的表示放到lockname数组中
                     $this->lockedName[$key] = $expireAt;
                     // 设置key失效时间
-                    $res = $this->expire($key, $expireAt);
+                    $res = $this->expire($key, $expire);
                     return true;
                 }
-                echo "***************1111111111\r\n";
                 // 已秒为单位返回给定的key剩余生存周期
                 $ttl = $this->redis->ttl($redisKey);
-                echo "**************333333333333333333*\r\n";
                 // ttl小于0，表示key没有设置生存周期
                 //
                 //
                 if ($ttl < 0) {
-                    echo "************sssssssaaaaaaaaaaa***\r\n";
                     $this->redis->set($redisKey, $expireAt);
                     $this->lockedName[$key] = $expireAt;
                     return true;
                 }
-                echo "**************ssssssssssssssssss*\r\n";
                 // 如果设置锁失败，或超过最大等待时间，就退出
                 if ($timeout <= 0 || $timeoutAt < microtime(true)) {
-                    echo "=================\r\n";
                     break;
                 }
-                echo "**************dddddddddddddddddddddd*\r\n";
                 // 间隔 指定时间后请求
                 usleep($waiteIntervalUs);
             }
@@ -89,7 +81,6 @@ class RedisLocks
      */
     public function unLock($key): bool
     {
-        echo "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\r\n";
         if ($this->isLocking($key)) {
             if ($this->redis->del("Lock:{$key}")) {
                 unset($this->lockedName[$key]);
